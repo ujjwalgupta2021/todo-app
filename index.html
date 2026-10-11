@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="A simple, responsive Todo application with localStorage persistence." />
+  <title>Todo Application</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-100 antialiased">
+  <main class="flex min-h-screen items-center justify-center px-4 py-8">
+    <section class="w-full max-w-2xl">
+      <div class="rounded-2xl border border-slate-800 bg-slate-900/90 p-6 shadow-2xl shadow-black/30 sm:p-8">
+        <header class="mb-8">
+          <p class="mb-2 text-sm font-medium uppercase tracking-widest text-indigo-400">
+            Stay organized
+          </p>
+          <h1 class="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+            My Todo List
+          </h1>
+          <p class="mt-3 text-slate-400">
+            Add tasks, mark them complete, and keep your day on track.
+          </p>
+        </header>
+
+        <form id="todo-form" class="mb-6 flex flex-col gap-3 sm:flex-row" aria-label="Add a new task">
+          <label for="todo-input" class="sr-only">New task</label>
+          <input
+            id="todo-input"
+            name="task"
+            type="text"
+            placeholder="What needs to be done?"
+            autocomplete="off"
+            maxlength="200"
+            required
+            class="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-100 outline-none transition placeholder:text-slate-500 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/30"
+          />
+          <button
+            type="submit"
+            class="rounded-xl bg-indigo-600 px-5 py-3 font-semibold text-white transition hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2 focus:ring-offset-slate-900"
+          >
+            Add task
+          </button>
+        </form>
+
+        <div class="mb-4 flex items-center justify-between gap-4">
+          <h2 class="text-lg font-semibold text-white">Tasks</h2>
+          <p id="task-count" class="text-sm text-slate-400" aria-live="polite">
+            0 tasks
+          </p>
+        </div>
+
+        <ul id="todo-list" class="space-y-3" aria-live="polite"></ul>
+
+        <p id="empty-state" class="rounded-xl border border-dashed border-slate-700 px-4 py-8 text-center text-slate-500">
+          No tasks yet. Add one above to get started.
+        </p>
+      </div>
+
+      <footer class="mt-5 text-center text-sm text-slate-500">
+        Tasks are saved automatically in your browser.
+      </footer>
+    </section>
+  </main>
+
+  <script>
+    const STORAGE_KEY = "todo-app-tasks";
+
+    const todoForm = document.querySelector("#todo-form");
+    const todoInput = document.querySelector("#todo-input");
+    const todoList = document.querySelector("#todo-list");
+    const emptyState = document.querySelector("#empty-state");
+    const taskCount = document.querySelector("#task-count");
+
+    let tasks = loadTasks();
+
+    function loadTasks() {
+      try {
+        const storedTasks = localStorage.getItem(STORAGE_KEY);
+        return storedTasks ? JSON.parse(storedTasks) : [];
+      } catch (error) {
+        console.error("Unable to load tasks:", error);
+        return [];
+      }
+    }
+
+    function saveTasks() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    }
+
+    function createTask(text) {
+      return {
+        id: crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        text,
+        completed: false
+      };
+    }
+
+    function updateTaskCount() {
+      const remainingTasks = tasks.filter((task) => !task.completed).length;
+      const taskLabel = remainingTasks === 1 ? "task" : "tasks";
+
+      taskCount.textContent = `${remainingTasks} ${taskLabel} remaining`;
+    }
+
+    function renderTasks() {
+      todoList.replaceChildren();
+
+      emptyState.classList.toggle("hidden", tasks.length > 0);
+
+      tasks.forEach((task) => {
+        const listItem = document.createElement("li");
+        listItem.className =
+          "flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/70 p-4";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.checked = task.completed;
+        checkbox.setAttribute("aria-label", `Mark "${task.text}" as complete`);
+        checkbox.className =
+          "h-5 w-5 shrink-0 cursor-pointer rounded border-slate-600 bg-slate-800 text-indigo-600 focus:ring-2 focus:ring-indigo-500";
+
+        checkbox.addEventListener("change", () => {
+          task.completed = checkbox.checked;
+          saveTasks();
+          renderTasks();
+        });
+
+        const taskText = document.createElement("span");
+        taskText.textContent = task.text;
+        taskText.className = `min-w-0 flex-1 break-words ${
+          task.completed
+            ? "text-slate-500 line-through"
+            : "text-slate-200"
+        }`;
+
+        const deleteButton = document.createElement("button");
+        deleteButton.type = "button";
+        deleteButton.textContent = "Delete";
+        deleteButton.setAttribute("aria-label", `Delete "${task.text}"`);
+        deleteButton.className =
+          "rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400 focus:outline-none focus:ring-2 focus:ring-red-500/50";
+
+        deleteButton.addEventListener("click", () => {
+          tasks = tasks.filter((currentTask) => currentTask.id !== task.id);
+          saveTasks();
+          renderTasks();
+        });
+
+        listItem.append(checkbox, taskText, deleteButton);
+        todoList.appendChild(listItem);
+      });
+
+      updateTaskCount();
+    }
+
+    todoForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+
+      const text = todoInput.value.trim();
+
+      if (!text) {
+        return;
+      }
+
+      tasks.unshift(createTask(text));
+      saveTasks();
+      renderTasks();
+
+      todoForm.reset();
+      todoInput.focus();
+    });
+
+    renderTasks();
+  </script>
+</body>
+</html>
